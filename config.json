@@ -1,0 +1,5 @@
+{
+    "base_url": "",
+    "crawl_depth": 100,
+    "logging_level": "DEBUG"
+}
