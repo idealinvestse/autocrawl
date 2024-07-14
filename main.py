@@ -1,36 +1,34 @@
-import json
-import os
+import logging
 import asyncio
+import os
+import json
+from urllib.parse import urlparse
 from crawler import Crawler
 from scraper import Scraper
 from logger import Logger
 from config import Config
-from urllib.parse import urlparse
 
-
-async def crawl_and_scrape(base_url, crawl_depth, max_req_per_second, logger):
+async def crawl_and_scrape(base_url, crawl_depth, logger):
     crawler = Crawler(base_url, crawl_depth, logger)
     await crawler.crawl(base_url)
 
     if crawler.visited_links:
-        scraper = Scraper(list(crawler.visited_links), max_req_per_second, logger)
+        scraper = Scraper(list(crawler.visited_links),  logger)
         scraped_data = await scraper.scrape()
         return scraped_data
     else:
         return []
 
-async def main_async():
+async def main_async(logger):
     config_loader = Config('config.json')
     config = config_loader.load()
 
     base_url = config['base_url']
     crawl_depth = config['crawl_depth']
     logging_level = config['logging_level']
-    max_req_per_second = config.get('max_req_per_second', 10)
+    max_req_per_second = config.get('max_req_per_second', 1)
 
-    logger = Logger(logging_level)
-
-    scraped_data = await crawl_and_scrape(base_url, crawl_depth, max_req_per_second, logger)
+    scraped_data = await crawl_and_scrape(base_url, crawl_depth, logger)
 
     domain_name = urlparse(base_url).netloc
     if not os.path.exists(domain_name):
@@ -43,24 +41,36 @@ async def main_async():
 
 def main():
     loop = asyncio.get_event_loop()
-
-    # Properly initialize the logger with the level set in the configuration.
     config_loader = Config('config.json')
     config = config_loader.load()
     logging_level = config['logging_level']
-    logger = Logger(logging_level)
+    
+    # Ensure logging_level is a string before calling .upper()
+    if isinstance(logging_level, int):
+        # Handle the case where logging_level is an integer
+        # This could be converting the integer to a corresponding string
+        # Or setting a default logging level
+        logging_level = 'INFO'  # Replace DEFAULT_LOGGING_LEVEL with your default
+    else:
+        logging_level = logging_level.upper()
 
+    level_mapping = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL
+    }
+    resolved_level = level_mapping.get(logging_level.upper(), logging.INFO)
+    
+    logger = Logger(resolved_level)  # Assuming Logger can handle the logging level correctly.
+    
     try:
-        loop.run_until_complete(main_async())
-      
-      # Logger usage has been corrected inside "main_async"  
-      
+        loop.run_until_complete(main_async(logger))
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        loop.run_until_complete(logger.error("An error occurred: " + str(e)))
-      
+        loop.run_until_complete(logger.log(f"An error occurred: {e}"))
     finally:
-       loop.close()
+        loop.close()
 
 if __name__ == "__main__":
-     main()
+    main()

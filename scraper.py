@@ -4,10 +4,9 @@ from bs4 import BeautifulSoup
 from logger import Logger
 
 class Scraper:
-    def __init__(self, links, max_req_per_second, logger: Logger):
-        self.links = links
-        self.rate_limiter = asyncio.Semaphore(max_req_per_second)
+    def __init__(self, logger, links):
         self.logger = logger
+        self.links = links
 
     def get_metadata(self, soup):
         metadata = soup.find('meta', attrs={'name': 'description'})

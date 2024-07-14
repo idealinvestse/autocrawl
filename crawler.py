@@ -1,17 +1,27 @@
-import aiohttp
-from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
+from bs4 import BeautifulSoup
+import aiohttp
 import asyncio
 
 class Crawler:
     def __init__(self, base_url, depth_limit, logger):
         self.base_url = base_url
         self.depth_limit = depth_limit
-        self.visited_links = set()
         self.logger = logger
+        self.visited_links = set()
 
-    def is_internal_link(self, url):
-        return urlparse(url).scheme and urlparse(url).netloc == urlparse(self.base_url).netloc
+    def is_internal_link(self, url, check_internal=True):
+        if not check_internal:
+            return True
+        # Normalize the base URL and the URL being checked
+        parsed_base_url = urlparse(self.base_url.rstrip('/'))
+        base_domain = parsed_base_url.netloc.lower()
+        parsed_url = urlparse(url.rstrip('/'))
+        url_domain = parsed_url.netloc.lower()
+
+        # Check if the URL domain ends with the base domain (to include subdomains)
+        # and ensure the scheme is present to consider it a valid URL
+        return parsed_url.scheme and (url_domain == base_domain or url_domain.endswith('.' + base_domain))
 
     async def get_links(self, url):
         try:
@@ -37,11 +47,13 @@ class Crawler:
         if depth > self.depth_limit or (url in self.visited_links):
             return
         self.visited_links.add(url)
-        links = await self.get_links(url)
-        tasks = []
+        links = await self.get_links(url)  # Fetch links for the current URL
+        tasks = []  # Initialize the list to keep track of tasks
         for link in links:
             if link not in self.visited_links:
                 await self.logger.log(f"Found {link}, crawling...")
                 task = asyncio.create_task(self.crawl(link, depth + 1))
                 tasks.append(task)
+            else:
+                await self.logger.log(f"Skipping {link} (already visited)")
         await asyncio.gather(*tasks)
